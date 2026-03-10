@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sambung Kata Pro — KBBI Word Finder</title>
+  <meta name="description"
+    content="Tool pencarian kata KBBI untuk menang sambung kata. Cari berdasarkan awalan, akhiran, dan strategi terbaik.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <!-- Loading Screen -->
+  <div id="loading-screen">
+    <div class="loader-content">
+      <div class="loader-icon">
+        <svg viewBox="0 0 100 100" width="80" height="80">
+          <circle cx="50" cy="50" r="45" stroke="url(#grad)" stroke-width="4" fill="none" stroke-dasharray="200"
+            stroke-dashoffset="200" stroke-linecap="round">
+            <animate attributeName="stroke-dashoffset" values="200;0;200" dur="2s" repeatCount="indefinite" />
+            <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="1.5s"
+              repeatCount="indefinite" />
+          </circle>
+          <defs>
+            <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#6366f1" />
+              <stop offset="100%" style="stop-color:#a855f7" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <h2>Memuat Kamus KBBI...</h2>
+      <p id="loading-status">Mengunduh data kata...</p>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="app" class="hidden">
+    <!-- Header -->
+    <header>
+      <div class="header-glow"></div>
+      <div class="container">
+        <div class="header-content">
+          <div class="logo">
+            <div class="logo-icon">⚡</div>
+            <div>
+              <h1>Sambung Kata <span class="pro-badge">PRO</span></h1>
+              <p class="subtitle" id="word-count">Memuat...</p>
+            </div>
+          </div>
+          <div class="header-stats">
+            <div class="stat-chip">
+              <span class="stat-icon">📚</span>
+              <span id="total-words-stat">—</span> kata
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Tab Navigation (Search vs Strategy) -->
+    <nav class="tab-nav">
+      <div class="container">
+        <div class="tabs">
+          <button class="tab active" data-tab="search" id="tab-search">
+            <span class="tab-icon">🔍</span>
+            <span class="tab-label">Cari Kata</span>
+          </button>
+          <button class="tab" data-tab="strategy" id="tab-strategy">
+            <span class="tab-icon">🧠</span>
+            <span class="tab-label">Mode Strategi</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Search Panels -->
+    <main class="container">
+      <!-- UNIFIED SEARCH PANEL -->
+      <section class="panel active" id="panel-search">
+        <div class="search-card">
+          <div class="search-header">
+            <h2>🔍 Cari Kata KBBI</h2>
+            <p>Cari berdasarkan awalan, akhiran, atau <strong>keduanya sekaligus</strong>. Hasil langsung muncul!</p>
+          </div>
+          <div class="dual-search">
+            <div class="search-field">
+              <label class="field-label">Awalan (huruf depan)</label>
+              <div class="search-input-wrapper">
+                <span class="search-icon">🔤</span>
+                <input type="text" id="prefix-input" placeholder="misal: ko, me, ber" autocomplete="off"
+                  spellcheck="false">
+                <button class="clear-btn" id="prefix-clear" title="Hapus">✕</button>
+              </div>
+            </div>
+            <div class="search-divider">
+              <span class="divider-label">+</span>
+            </div>
+            <div class="search-field">
+              <label class="field-label">Akhiran (huruf belakang)</label>
+              <div class="search-input-wrapper">
+                <span class="search-icon">🔡</span>
+                <input type="text" id="suffix-input" placeholder="misal: ks, an, kan" autocomplete="off"
+                  spellcheck="false">
+                <button class="clear-btn" id="suffix-clear" title="Hapus">✕</button>
+              </div>
+            </div>
+          </div>
+          <div class="filter-row">
+            <label class="filter-label">Panjang min:</label>
+            <input type="number" id="search-minlen" class="filter-num" value="2" min="2" max="20">
+            <label class="filter-label">Panjang max:</label>
+            <input type="number" id="search-maxlen" class="filter-num" value="30" min="2" max="30">
+            <label class="sort-label">Urutkan:</label>
+            <select id="search-sort" class="filter-select">
+              <option value="alpha">A-Z (Abjad)</option>
+              <option value="length-asc">Terpendek</option>
+              <option value="length-desc">Terpanjang</option>
+              <option value="strategy">Strategi Terbaik</option>
+            </select>
+          </div>
+          <!-- Inline add word -->
+          <div class="add-word-row">
+            <span class="add-icon">＋</span>
+            <input type="text" id="add-word-input" placeholder="Ketik kata baru lalu tekan Enter untuk menambahkan..."
+              autocomplete="off" spellcheck="false">
+            <span class="add-hint" id="add-hint"></span>
+          </div>
+        </div>
+        <!-- Alphabet Index Bar -->
+        <div class="alphabet-bar" id="alphabet-bar"></div>
+
+        <!-- Results: 2 sections when both filled, 1 when single -->
+        <div id="results-container">
+          <!-- Dual mode: Combined -->
+          <div class="result-section" id="section-combined" style="display:none">
+            <div class="section-header">
+              <span class="section-icon">🎯</span>
+              <span class="section-title" id="section-combined-title">Kombinasi</span>
+              <span class="section-count" id="section-combined-count"></span>
+            </div>
+            <div class="hscroll-row" id="results-combined"></div>
+          </div>
+
+          <!-- Dual mode: Prefix only -->
+          <div class="result-section" id="section-prefix" style="display:none">
+            <div class="section-header">
+              <span class="section-icon">🔤</span>
+              <span class="section-title" id="section-prefix-title">Awalan</span>
+              <span class="section-count" id="section-prefix-count"></span>
+            </div>
+            <div class="hscroll-row" id="results-prefix"></div>
+          </div>
+
+          <!-- Single mode -->
+          <div class="result-section" id="section-single" style="display:none">
+            <div class="results-info" id="search-info"></div>
+            <div class="hscroll-row" id="results-single"></div>
+          </div>
+        </div>
+
+        <!-- Hidden words -->
+        <div class="hidden-section" id="hidden-section">
+          <button class="hidden-toggle" id="hidden-toggle">
+            <span>👁️‍🗨️ Tersembunyi (<span id="hidden-count">0</span>)</span>
+            <span class="toggle-arrow" id="toggle-arrow">▼</span>
+          </button>
+          <div class="hscroll-row hidden-grid" id="hidden-results"></div>
+        </div>
+      </section>
+
+      <!-- STRATEGY PANEL -->
+      <section class="panel" id="panel-strategy">
+        <div class="search-card strategy-card">
+          <div class="search-header">
+            <h2>🧠 Mode Strategi Sambung Kata</h2>
+            <p>Masukkan kata terakhir lawan, dan temukan <strong>kata terbaik</strong> untuk mengalahkan mereka!</p>
+          </div>
+          <div class="search-input-wrapper">
+            <span class="search-icon">⚔️</span>
+            <input type="text" id="strategy-input" placeholder="Kata terakhir lawan..." autocomplete="off"
+              spellcheck="false">
+            <button class="clear-btn" id="strategy-clear" title="Hapus">✕</button>
+          </div>
+          <div class="strategy-options">
+            <div class="syl-count-wrapper">
+              <label class="filter-label">Ambil suku kata terakhir:</label>
+              <div class="syl-buttons">
+                <button class="syl-btn active" data-syl="1">1 suku</button>
+                <button class="syl-btn" data-syl="2">2 suku</button>
+                <button class="syl-btn" data-syl="custom">Custom</button>
+              </div>
+              <input type="number" id="strategy-charcount" class="filter-num hidden" value="2" min="1" max="10"
+                title="Jumlah huruf terakhir">
+            </div>
+          </div>
+          <div class="strategy-tip">
+            <div class="tip-icon">💡</div>
+            <div>
+              <strong>Tips:</strong> Kata dengan skor <span class="score-badge low">rendah</span> artinya lawan SUSAH
+              menyambung → kamu menang! Skor menunjukkan berapa kata yang bisa lawan pakai untuk menyambung.
+            </div>
+          </div>
+        </div>
+        <div class="results-info" id="strategy-info"></div>
+        <div class="strategy-analysis" id="strategy-analysis"></div>
+        <div class="results-grid" id="strategy-results"></div>
+      </section>
+    </main>
+
+    <!-- Word Detail Modal -->
+    <div class="modal-overlay" id="modal-overlay">
+      <div class="modal" id="word-modal">
+        <button class="modal-close" id="modal-close">✕</button>
+        <div id="modal-content"></div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      <div class="container">
+        <p>Sambung Kata Pro — Dibuat untuk memenangkan Sambung Kata v.Indo di Roblox 🎮</p>
+      </div>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
