@@ -271,8 +271,26 @@
 
     function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
-    // ===== MODAL =====
+    // ===== COPY TO CLIPBOARD =====
+    let copyToastTimer = null;
+    function copyWord(word) {
+        navigator.clipboard.writeText(word).then(() => {
+            const toast = $('copy-toast');
+            toast.textContent = `✅ "${word}" copied!`;
+            toast.classList.add('show');
+            clearTimeout(copyToastTimer);
+            copyToastTimer = setTimeout(() => toast.classList.remove('show'), 1200);
+        }).catch(() => {});
+    }
+
+    // ===== MODAL / CLICK =====
     window.showWordDetail = function (word) {
+        // Gaming mode: click = copy
+        if (document.body.classList.contains('mini-mode')) {
+            copyWord(word);
+            return;
+        }
+        // Web mode: show detail modal
         const entry = allWords.find(w => w.w === word);
         if (!entry) return;
         const e2 = word.substring(word.length - 2), opts = startFreq[e2] || 0;
@@ -393,9 +411,69 @@
         // Modal
         $('modal-close').addEventListener('click', () => $('modal-overlay').classList.remove('active'));
         $('modal-overlay').addEventListener('click', (e) => { if (e.target === $('modal-overlay')) $('modal-overlay').classList.remove('active'); });
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('modal-overlay').classList.remove('active'); });
+
+        // ===== GAMING / MINI MODE =====
+        function toggleMini() {
+            const isMini = document.body.classList.toggle('mini-mode');
+            $('mini-toggle-icon').textContent = isMini ? '🖥️' : '🎮';
+            $('mini-toggle-text').textContent = isMini ? 'Web' : 'Gaming';
+            localStorage.setItem('skpro_mini', isMini ? '1' : '0');
+            if (isMini) $('prefix-input').focus();
+        }
+
+        if (localStorage.getItem('skpro_mini') === '1') {
+            document.body.classList.add('mini-mode');
+            $('mini-toggle-icon').textContent = '🖥️';
+            $('mini-toggle-text').textContent = 'Web';
+        }
+
+        $('mini-toggle').addEventListener('click', toggleMini);
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') $('modal-overlay').classList.remove('active');
+            if (e.ctrlKey && e.key === 'm') { e.preventDefault(); toggleMini(); }
+            if (e.ctrlKey && e.code === 'Space') { e.preventDefault(); $('prefix-input').focus(); $('prefix-input').select(); }
+        });
+
+        // ===== PWA INSTALL =====
+        let deferredPrompt = null;
+
+        // Hide button if already installed as PWA
+        if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+            $('install-btn').style.display = 'none';
+        }
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            $('install-btn-text').textContent = 'Install App';
+        });
+
+        $('install-btn').addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const result = await deferredPrompt.userChoice;
+                if (result.outcome === 'accepted') {
+                    $('install-btn').style.display = 'none';
+                }
+                deferredPrompt = null;
+            } else {
+                alert('Cara install sebagai App:\n\n1. Buka Chrome menu (⋮) di kanan atas\n2. Klik "Install Sambung Kata Pro"\n   atau "Cast, save, and share" → "Install"\n3. Klik Install\n\nCalau belum muncul opsi install:\n- Pastikan pakai Chrome/Edge\n- Buka via http://127.0.0.1:8080');
+            }
+        });
+
+        window.addEventListener('appinstalled', () => {
+            $('install-btn').style.display = 'none';
+            deferredPrompt = null;
+        });
 
         doSearch();
+    }
+
+    // ===== SERVICE WORKER =====
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
     }
 
     loadData().then(() => setupEvents());

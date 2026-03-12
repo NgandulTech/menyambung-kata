@@ -1,5 +1,9 @@
 # Raw data (too large, already processed)
 kbbi_v6_data.json
+kbbi_words2.json
+kbbi_words_filtered.json
+kbbi_words_merged.json
+kbbi_words_new.json
 
 # Node modules
 node_modules/

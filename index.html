@@ -12,6 +12,10 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#818cf8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="icon-512.png">
 </head>
 
 <body>
@@ -57,6 +61,14 @@
             </div>
           </div>
           <div class="header-stats">
+            <button class="install-btn" id="install-btn" title="Install sebagai App">
+              <span>📲</span>
+              <span id="install-btn-text">Install App</span>
+            </button>
+            <button class="mini-toggle" id="mini-toggle" title="Mode Gaming (Ctrl+M)">
+              <span id="mini-toggle-icon">🎮</span>
+              <span id="mini-toggle-text">Gaming</span>
+            </button>
             <div class="stat-chip">
               <span class="stat-icon">📚</span>
               <span id="total-words-stat">—</span> kata
@@ -231,6 +243,9 @@
       </div>
     </footer>
   </div>
+
+  <div class="copy-toast" id="copy-toast">✅ Copied!</div>
+  <div class="shortcut-hint">Ctrl+M: Toggle Mode · Ctrl+Space: Focus · Klik kata = Copy</div>
 
   <script src="app.js"></script>
 </body>
