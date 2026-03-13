@@ -38,9 +38,22 @@
             $('loading-status').textContent = 'Memproses data...';
             $('progress-fill').style.width = '50%';
             const data = await resp.json();
-            allWords = data.words;
+            allWords = data.words || [];
             startFreq = data.startFreq || {};
             endingFreq = data.endingFreq || {};
+
+            // Parse collapsed indexes if they exist, otherwise use fallback
+            if (data.prefixIndex) {
+                for (const [k, v] of Object.entries(data.prefixIndex)) {
+                    prefixMap[k] = v.split(',').map(Number);
+                }
+            }
+            if (data.suffixIndex) {
+                for (const [k, v] of Object.entries(data.suffixIndex)) {
+                    suffixMap[k] = v.split(',').map(Number);
+                }
+            }
+            
             totalWords = data.totalWords || allWords.length;
             loadLocalData();
             mergeCustomWords();
@@ -53,7 +66,6 @@
                 $('loading-screen').classList.add('fade-out');
                 $('app').classList.remove('hidden');
                 updateWordCount();
-                buildAlphabetBar();
             }, 400);
         } catch (err) {
             $('loading-status').textContent = 'Error: ' + err.message;
@@ -103,29 +115,13 @@
         allWords.push({ w: word, m: '(Custom)', s, custom: true });
         allWords.sort((a, b) => a.w.localeCompare(b.w));
         customWords.push({ w: word, m: '(Custom)', s });
-        saveCustom(); buildIndexes(); updateWordCount(); buildAlphabetBar();
+        saveCustom(); buildIndexes(); updateWordCount();
         return { ok: true, msg: `"${word}" ✓` };
     }
 
     window.hideWord = function (w, e) { e.stopPropagation(); hiddenWords.add(w); saveHidden(); doSearch(); };
     window.unhideWord = function (w, e) { e.stopPropagation(); hiddenWords.delete(w); saveHidden(); doSearch(); };
 
-    // ===== ALPHABET =====
-    function buildAlphabetBar() {
-        const bar = $('alphabet-bar');
-        bar.innerHTML = 'abcdefghijklmnopqrstuvwxyz'.split('').map(l => {
-            const c = alphaCounts[l] || 0;
-            return `<button class="alpha-btn" data-letter="${l}" ${c === 0 ? 'disabled style="opacity:0.3"' : ''}>${l.toUpperCase()}<span class="alpha-count">${c}</span></button>`;
-        }).join('');
-        bar.addEventListener('click', (e) => {
-            const btn = e.target.closest('.alpha-btn');
-            if (!btn || btn.disabled) return;
-            const l = btn.dataset.letter, was = btn.classList.contains('active');
-            bar.querySelectorAll('.alpha-btn').forEach(b => b.classList.remove('active'));
-            if (!was) { btn.classList.add('active'); $('prefix-input').value = l; } else { $('prefix-input').value = ''; }
-            doSearch();
-        });
-    }
 
     // ===== INDEX HELPERS =====
     function getByPrefix(prefix) {
@@ -133,7 +129,8 @@
         if (prefix.length <= 4 && prefixMap[prefix]) return new Set(prefixMap[prefix]);
         let k = prefix.substring(0, Math.min(4, prefix.length));
         while (k.length > 0 && !prefixMap[k]) k = k.substring(0, k.length - 1);
-        return k ? new Set(prefixMap[k].filter(i => allWords[i].w.startsWith(prefix))) : new Set();
+        if (!k) return new Set();
+        return new Set((prefixMap[k] || []).filter(i => allWords[i] && allWords[i].w.startsWith(prefix)));
     }
 
     function getBySuffix(suffix) {
@@ -141,7 +138,8 @@
         if (suffix.length <= 4 && suffixMap[suffix]) return new Set(suffixMap[suffix]);
         let k = suffix.substring(suffix.length - Math.min(4, suffix.length));
         while (k.length > 0 && !suffixMap[k]) k = k.substring(1);
-        return k ? new Set(suffixMap[k].filter(i => allWords[i].w.endsWith(suffix))) : new Set();
+        if (!k) return new Set();
+        return new Set((suffixMap[k] || []).filter(i => allWords[i] && allWords[i].w.endsWith(suffix)));
     }
 
     function filterSort(indices, minLen, maxLen, sortMode) {
@@ -156,26 +154,74 @@
 
     function doSort(arr, mode) {
         const a = [...arr];
+        
+        // Helper to check for identical double letters at the end
+        const isDouble = (word) => {
+            if (word.length < 2) return false;
+            return word[word.length - 1] === word[word.length - 2];
+        };
+
         switch (mode) {
-            case 'alpha': a.sort((x, y) => allWords[x].w.localeCompare(allWords[y].w)); break;
-            case 'length-asc': a.sort((x, y) => allWords[x].w.length - allWords[y].w.length || allWords[x].w.localeCompare(allWords[y].w)); break;
-            case 'length-desc': a.sort((x, y) => allWords[y].w.length - allWords[x].w.length || allWords[x].w.localeCompare(allWords[y].w)); break;
-            case 'strategy': a.sort((x, y) => allWords[x].s - allWords[y].s || allWords[x].w.localeCompare(allWords[y].w)); break;
+            case 'double':
+                a.sort((x, y) => {
+                    const wx = allWords[x].w;
+                    const wy = allWords[y].w;
+                    const dx = isDouble(wx) ? 1 : 0;
+                    const dy = isDouble(wy) ? 1 : 0;
+                    
+                    if (dx !== dy) return dy - dx; // Double endings first
+                    return wx.length - wy.length || wx.localeCompare(wy); // Pure double favors shortest
+                });
+                break;
+            case 'hard':
+                // Pure hard favors smallest strategy score, then shortest word
+                a.sort((x, y) => allWords[x].s - allWords[y].s || allWords[x].w.length - allWords[y].w.length || allWords[x].w.localeCompare(allWords[y].w));
+                break;
+            case 'combo':
+                a.sort((x, y) => {
+                    const wx = allWords[x].w;
+                    const wy = allWords[y].w;
+                    const dx = isDouble(wx) ? 1 : 0;
+                    const dy = isDouble(wy) ? 1 : 0;
+                    
+                    if (dx !== dy) return dy - dx; // Double endings first
+                    return allWords[x].s - allWords[y].s || wx.localeCompare(wy); // Then hardest
+                });
+                break;
+            case 'p2w':
+                a.sort((x, y) => {
+                    // P2W logic: Shortest word FIRST (easy to type), then hardest score
+                    const sx = allWords[x].s;
+                    const sy = allWords[y].s;
+                    const lenX = allWords[x].w.length;
+                    const lenY = allWords[y].w.length;
+                    
+                    if (lenX !== lenY) return lenX - lenY; // Top priority: Shortest word!
+                    return sx - sy; // Next priority: Hardest score
+                });
+                break;
+            case 'strategy':
+            default:
+                a.sort((x, y) => allWords[x].s - allWords[y].s || allWords[x].w.localeCompare(allWords[y].w)); 
+                break;
         }
         return a;
     }
 
     // ===== MAIN SEARCH =====
     function doSearch() {
-        const prefix = ($('prefix-input').value || '').toLowerCase().trim();
-        const suffix = ($('suffix-input').value || '').toLowerCase().trim();
+        const prefixInput = ($('prefix-input').value || '').toLowerCase();
+        const suffixInput = ($('suffix-input').value || '').toLowerCase();
+        
+        const prefixes = prefixInput.split(',').map(s => s.trim()).filter(Boolean);
+        const suffixes = suffixInput.split(',').map(s => s.trim()).filter(Boolean);
+        
         const minLen = parseInt($('search-minlen').value) || 2;
         const maxLen = parseInt($('search-maxlen').value) || 30;
         const sortMode = $('search-sort').value;
 
-        $('prefix-clear').classList.toggle('visible', prefix.length > 0);
-        $('suffix-clear').classList.toggle('visible', suffix.length > 0);
-        $('alphabet-bar').querySelectorAll('.alpha-btn').forEach(b => b.classList.toggle('active', prefix.length === 1 && b.dataset.letter === prefix));
+        $('prefix-clear').classList.toggle('visible', prefixes.length > 0);
+        $('suffix-clear').classList.toggle('visible', suffixes.length > 0);
 
         // Hide all
         $('section-combined').style.display = 'none';
@@ -183,70 +229,109 @@
         $('section-single').style.display = 'none';
         $('results-container').classList.remove('dual-mode');
 
-        if (!prefix && !suffix) {
+        if (prefixes.length === 0 && suffixes.length === 0) {
             $('section-single').style.display = 'block';
-            $('results-single').innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><h3>Ketik awalan, akhiran, atau keduanya!</h3><p>Contoh: awalan "ko" + akhiran "ks"</p></div>`;
+            $('results-single').innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><h3>Ketik awalan, akhiran, atau keduanya!</h3><p>Contoh: awalan "ko, ba" + akhiran "ks, er"</p></div>`;
             $('search-info').innerHTML = '';
-            updateHidden([], '', '');
+            updateHidden([], [], []);
             return;
         }
 
         let allHidden = [];
 
-        if (prefix && suffix) {
+        // Helper to get union of indices for multiple prefixes
+        function getMultiPrefix(prefs) {
+            const res = new Set();
+            for (const p of prefs) {
+                const s = getByPrefix(p);
+                for (const item of s) res.add(item);
+            }
+            return res;
+        }
+
+        // Helper to get union of indices for multiple suffixes
+        function getMultiSuffix(sufs) {
+            const res = new Set();
+            for (const suf of sufs) {
+                const s = getBySuffix(suf);
+                for (const item of s) res.add(item);
+            }
+            return res;
+        }
+
+        if (prefixes.length > 0 && suffixes.length > 0) {
             // ===== DUAL MODE: 2 sections side-by-side =====
             $('results-container').classList.add('dual-mode');
-            const preIdx = getByPrefix(prefix);
-            const sufIdx = getBySuffix(suffix);
+            const preIdx = getMultiPrefix(prefixes);
+            const sufIdx = getMultiSuffix(suffixes);
 
             // Section 1: Combined (prefix AND suffix)
             const combinedSet = new Set();
             for (const i of preIdx) { if (sufIdx.has(i)) combinedSet.add(i); }
             const combined = filterSort(combinedSet, minLen, maxLen, sortMode);
             $('section-combined').style.display = 'block';
-            $('section-combined-title').textContent = `Awalan "${prefix}" + Akhiran "${suffix}"`;
+            
+            const pText = prefixes.map(p => `"${p}"`).join(', ');
+            const sText = suffixes.map(s => `"${s}"`).join(', ');
+            $('section-combined-title').textContent = `Awalan ${pText} + Akhiran ${sText}`;
             $('section-combined-count').textContent = `${combined.visible.length} kata`;
-            renderPills($('results-combined'), combined.visible.slice(0, MAX_RESULTS).map(i => allWords[i]), prefix, suffix, sortMode === 'strategy', false);
+            renderPills($('results-combined'), combined.visible.slice(0, MAX_RESULTS).map(i => allWords[i]), prefixes, suffixes, true, false);
             allHidden.push(...combined.hidden.map(i => allWords[i]));
 
             // Section 2: Prefix only (all prefix matches)
             const prefOnly = filterSort(preIdx, minLen, maxLen, sortMode);
+            if (prefOnly.visible.length || prefOnly.hidden.length) {
             $('section-prefix').style.display = 'block';
-            $('section-prefix-title').textContent = `Semua awalan "${prefix}"`;
+            $('section-prefix-title').textContent = `Semua awalan ${pText}`;
             $('section-prefix-count').textContent = `${prefOnly.visible.length} kata`;
-            renderPills($('results-prefix'), prefOnly.visible.slice(0, MAX_RESULTS).map(i => allWords[i]), prefix, null, sortMode === 'strategy', false);
+            renderPills($('results-prefix'), prefOnly.visible.slice(0, MAX_RESULTS).map(i => allWords[i]), prefixes, [], true, false);
+            }
 
         } else {
             // ===== SINGLE MODE =====
-            const indices = prefix ? getByPrefix(prefix) : getBySuffix(suffix);
+            const indices = prefixes.length > 0 ? getMultiPrefix(prefixes) : getMultiSuffix(suffixes);
             const filtered = filterSort(indices, minLen, maxLen, sortMode);
             $('section-single').style.display = 'block';
             const total = filtered.visible.length;
             $('search-info').innerHTML = `<span>Ditemukan <span class="count">${total.toLocaleString('id-ID')}</span> kata${total > MAX_RESULTS ? ` (${MAX_RESULTS} ditampilkan)` : ''}${filtered.hidden.length ? ` · ${filtered.hidden.length} tersembunyi` : ''}</span>`;
-            renderPills($('results-single'), filtered.visible.slice(0, MAX_RESULTS).map(i => allWords[i]), prefix, suffix, sortMode === 'strategy', false);
+            renderPills($('results-single'), filtered.visible.slice(0, MAX_RESULTS).map(i => allWords[i]), prefixes, suffixes, true, false);
             allHidden.push(...filtered.hidden.map(i => allWords[i]));
         }
 
-        updateHidden(allHidden, prefix, suffix);
+        updateHidden(allHidden, prefixes, suffixes);
     }
 
     // ===== RENDER PILL CARDS =====
-    function renderPills(container, results, prefix, suffix, showStrategy, isHidden) {
+    function renderPills(container, results, prefixes, suffixes, showStrategy, isHidden) {
         if (!results.length) {
             container.innerHTML = `<div class="no-results" style="width:100%;text-align:center;padding:16px;color:var(--text-muted)">Tidak ada kata</div>`;
             return;
         }
         container.innerHTML = results.map(w => {
             let wh = '';
-            if (prefix && suffix) {
-                const pL = prefix.length, sL = suffix.length;
+            
+            // Find the longest matching prefix and suffix for highlighting
+            let matchedPrefix = '';
+            for (const p of prefixes) {
+                if (w.w.startsWith(p) && p.length > matchedPrefix.length) matchedPrefix = p;
+            }
+            
+            let matchedSuffix = '';
+            for (const s of suffixes) {
+                if (w.w.endsWith(s) && s.length > matchedSuffix.length) matchedSuffix = s;
+            }
+
+            if (matchedPrefix && matchedSuffix) {
+                const pL = matchedPrefix.length, sL = matchedSuffix.length;
                 if (pL + sL >= w.w.length) wh = `<span class="highlight">${esc(w.w)}</span>`;
                 else wh = `<span class="highlight">${esc(w.w.substring(0, pL))}</span>${esc(w.w.substring(pL, w.w.length - sL))}<span class="highlight-suffix">${esc(w.w.substring(w.w.length - sL))}</span>`;
-            } else if (prefix) {
-                wh = `<span class="highlight">${esc(w.w.substring(0, prefix.length))}</span>${esc(w.w.substring(prefix.length))}`;
-            } else if (suffix) {
-                wh = `${esc(w.w.substring(0, w.w.length - suffix.length))}<span class="highlight-suffix">${esc(w.w.substring(w.w.length - suffix.length))}</span>`;
-            } else wh = esc(w.w);
+            } else if (matchedPrefix) {
+                wh = `<span class="highlight">${esc(w.w.substring(0, matchedPrefix.length))}</span>${esc(w.w.substring(matchedPrefix.length))}`;
+            } else if (matchedSuffix) {
+                wh = `${esc(w.w.substring(0, w.w.length - matchedSuffix.length))}<span class="highlight-suffix">${esc(w.w.substring(w.w.length - matchedSuffix.length))}</span>`;
+            } else {
+                wh = esc(w.w);
+            }
 
             let st = '';
             if (showStrategy) {
@@ -262,11 +347,11 @@
         }).join('');
     }
 
-    function updateHidden(list, prefix, suffix) {
+    function updateHidden(list, prefixes, suffixes) {
         $('hidden-count').textContent = list.length;
         if (!list.length) { $('hidden-section').style.display = 'none'; return; }
         $('hidden-section').style.display = 'block';
-        renderPills($('hidden-results'), list.slice(0, 100), prefix, suffix, false, true);
+        renderPills($('hidden-results'), list.slice(0, 100), prefixes, suffixes, false, true);
     }
 
     function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }

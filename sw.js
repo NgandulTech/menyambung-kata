@@ -1,10 +1,10 @@
 // Service Worker for Sambung Kata Pro PWA
-const CACHE_NAME = 'skpro-v2';
+const CACHE_NAME = 'skpro-v12';
 const ASSETS = [
   './',
   './index.html',
-  './style.css',
-  './app.js',
+  './style.v4.css',
+  './app.js?v=5',
   './kbbi_words.json',
   './icon-512.png',
   './manifest.json'

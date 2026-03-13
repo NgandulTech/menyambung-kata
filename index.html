@@ -11,7 +11,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.v4.css?v=9">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#818cf8">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -38,7 +38,7 @@
           </defs>
         </svg>
       </div>
-      <h2>Memuat Kamus KBBI...</h2>
+      <h2>Memuat Kamus KBBI...🎮</h2>
       <p id="loading-status">Mengunduh data kata...</p>
       <div class="progress-bar">
         <div class="progress-fill" id="progress-fill"></div>
@@ -133,10 +133,11 @@
             <input type="number" id="search-maxlen" class="filter-num" value="30" min="2" max="30">
             <label class="sort-label">Urutkan:</label>
             <select id="search-sort" class="filter-select">
-              <option value="alpha">A-Z (Abjad)</option>
-              <option value="length-asc">Terpendek</option>
-              <option value="length-desc">Terpanjang</option>
               <option value="strategy">Strategi Terbaik</option>
+              <option value="double">Akhiran Double Murni</option>
+              <option value="hard">Akhiran Sulit Murni</option>
+              <option value="combo">Super Combo (Double + Sulit)</option>
+              <option value="p2w">👑 Pay-to-Win (Pendek & Mematikan)</option>
             </select>
           </div>
           <!-- Inline add word -->
@@ -147,8 +148,6 @@
             <span class="add-hint" id="add-hint"></span>
           </div>
         </div>
-        <!-- Alphabet Index Bar -->
-        <div class="alphabet-bar" id="alphabet-bar"></div>
 
         <!-- Results: 2 sections when both filled, 1 when single -->
         <div id="results-container">
@@ -247,7 +246,7 @@
   <div class="copy-toast" id="copy-toast">✅ Copied!</div>
   <div class="shortcut-hint">Ctrl+M: Toggle Mode · Ctrl+Space: Focus · Klik kata = Copy</div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=5"></script>
 </body>
 
 </html>
