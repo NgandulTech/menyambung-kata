@@ -4,7 +4,7 @@
 
 ## 🌐 Try It Live
 
-👉 **[[https://qohary.github.io/SambungKata/](https://ngandultech.github.io/menyambung-kata/)]**
+👉 **[[(https://ngandultech.github.io/menyambung-kata/)](https://ngandultech.github.io/menyambung-kata/)]**
 
 ## ✨ Fitur
 
